@@ -256,8 +256,9 @@ STATIC mp_obj_t machine_uart_make_new(const mp_obj_type_t *type, size_t n_args, 
 
     // Attempts to use UART0 from Python has resulted in all sorts of fun errors.
     // FIXME: UART0 is disabled for now.
+	// @zeilenschubser: should be working without reinitializing the UART0 in HW, because the ESP-logging-lib seems to do that already.
     if (uart_num == UART_NUM_0) {
-        mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("UART(%d) is disabled (dedicated to REPL)"), uart_num);
+        //mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("UART(%d) is disabled (dedicated to REPL)"), uart_num);
     }
 
     // Defaults
@@ -299,21 +300,25 @@ STATIC mp_obj_t machine_uart_make_new(const mp_obj_type_t *type, size_t n_args, 
             break;
     }
 
-    // Remove any existing configuration
-    uart_driver_delete(self->uart_num);
+	// Remove any existing configuration
+	uart_driver_delete(self->uart_num);
 
-    // init the peripheral
-    // Setup
-    uart_param_config(self->uart_num, &uartcfg);
+	// init the peripheral
+	// Setup
+	uart_param_config(self->uart_num, &uartcfg);
 
-    uart_driver_install(uart_num, self->rxbuf, self->txbuf, 0, NULL, 0);
+	uart_driver_install(uart_num, self->rxbuf, self->txbuf, 0, NULL, 0);
 
-    mp_map_t kw_args;
-    mp_map_init_fixed_table(&kw_args, n_kw, args + n_args);
-    machine_uart_init_helper(self, n_args - 1, args + 1, &kw_args);
+	if (self->uart_num != UART_NUM_0) {
 
-    // Make sure pins are connected.
-    uart_set_pin(self->uart_num, self->tx, self->rx, self->rts, self->cts);
+		mp_map_t kw_args;
+		mp_map_init_fixed_table(&kw_args, n_kw, args + n_args);
+		machine_uart_init_helper(self, n_args - 1, args + 1, &kw_args);
+    }
+
+	// Make sure pins are connected.
+	uart_set_pin(self->uart_num, self->tx, self->rx, self->rts, self->cts);
+
 
     return MP_OBJ_FROM_PTR(self);
 }

@@ -44,6 +44,13 @@
 extern TaskHandle_t mp_main_task_handle;
 
 extern ringbuf_t stdin_ringbuf;
+// Call this after putting data to stdin_ringbuf
+void mp_hal_signal_input(void);
+// Call this when data is available in dupterm object
+void mp_hal_signal_dupterm_input(void);
+
+// This variable counts how many times the UART is attached to dupterm
+extern int uart_attached_to_dupterm;
 
 // Check the ESP-IDF error code and raise an OSError if it's not ESP_OK.
 void check_esp_err(esp_err_t code);

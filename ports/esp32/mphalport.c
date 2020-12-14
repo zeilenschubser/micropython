@@ -91,17 +91,16 @@ uintptr_t mp_hal_stdio_poll(uintptr_t poll_flags) {
     if ((poll_flags & MP_STREAM_POLL_RD) && stdin_ringbuf.iget != stdin_ringbuf.iput) {
         ret |= MP_STREAM_POLL_RD;
     }
-    return ret;
+    return ret | mp_uos_dupterm_poll(poll_flags);
 }
 
 int mp_hal_stdin_rx_chr(void) {
     for (;;) {
-        int c = ringbuf_get(&stdin_ringbuf);
+        int c = mp_uos_dupterm_rx_chr();
         if (c != -1) {
             return c;
         }
-        MICROPY_EVENT_POLL_HOOK
-        ulTaskNotifyTake(pdFALSE, 1);
+        vTaskDelay(1); // wait on another task
     }
 }
 
@@ -110,17 +109,6 @@ void mp_hal_stdout_tx_str(const char *str) {
 }
 
 void mp_hal_stdout_tx_strn(const char *str, uint32_t len) {
-    // Only release the GIL if many characters are being sent
-    bool release_gil = len > 20;
-    if (release_gil) {
-        MP_THREAD_GIL_EXIT();
-    }
-    for (uint32_t i = 0; i < len; ++i) {
-        uart_tx_one_char(str[i]);
-    }
-    if (release_gil) {
-        MP_THREAD_GIL_ENTER();
-    }
     mp_uos_dupterm_tx_strn(str, len);
 }
 
@@ -130,9 +118,9 @@ void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len) {
     while (len--) {
         if (*str == '\n') {
             if (str > last) {
-                mp_hal_stdout_tx_strn(last, str - last);
+                mp_uos_dupterm_tx_strn(last, str - last);
             }
-            mp_hal_stdout_tx_strn("\r\n", 2);
+            mp_uos_dupterm_tx_strn("\r\n", 2);
             ++str;
             last = str;
         } else {
@@ -140,7 +128,7 @@ void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len) {
         }
     }
     if (str > last) {
-        mp_hal_stdout_tx_strn(last, str - last);
+        mp_uos_dupterm_tx_strn(last, str - last);
     }
 }
 
@@ -203,6 +191,16 @@ uint64_t mp_hal_time_ns(void) {
     uint64_t ns = tv.tv_sec * 1000000000ULL;
     ns += (uint64_t)tv.tv_usec * 1000ULL;
     return ns;
+}
+
+// Call this after putting data to stdin_ringbuf
+void mp_hal_signal_input(void)
+{
+}
+// Call this when data is available in dupterm object
+void mp_hal_signal_dupterm_input(void)
+{
+
 }
 
 // Wake up the main task if it is sleeping

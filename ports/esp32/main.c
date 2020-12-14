@@ -71,12 +71,14 @@ int vprintf_null(const char *format, va_list ap) {
     return 0;
 }
 
+//default to vprintf_null, until app_main sets the correct one
+vprintf_like_t vprintf_log = &vprintf_null;
+
 void mp_task(void *pvParameter) {
     volatile uint32_t sp = (uint32_t)get_sp();
     #if MICROPY_PY_THREAD
     mp_thread_init(pxTaskGetStackStart(NULL), MP_TASK_STACK_SIZE / sizeof(uintptr_t));
     #endif
-    uart_init();
 
     // TODO: CONFIG_SPIRAM_SUPPORT is for 3.3 compatibility, remove after move to 4.0.
     #if CONFIG_ESP32_SPIRAM_SUPPORT || CONFIG_SPIRAM_SUPPORT
@@ -113,10 +115,23 @@ soft_reset:
     mp_obj_list_append(mp_sys_path, MP_OBJ_NEW_QSTR(MP_QSTR_));
     mp_obj_list_append(mp_sys_path, MP_OBJ_NEW_QSTR(MP_QSTR__slash_lib));
     mp_obj_list_init(mp_sys_argv, 0);
-    readline_init0();
 
     // initialise peripherals
     machine_pins_init();
+
+    readline_init0();
+	
+	 // Activate UART(0) on dupterm slot 1 for the REPL
+    {
+        mp_obj_t args[2];
+        args[0] = MP_OBJ_NEW_SMALL_INT(0);
+        args[1] = MP_OBJ_NEW_SMALL_INT(115200);
+        args[0] = machine_uart_type.make_new(&machine_uart_type, 2, 0, args);
+        args[1] = MP_OBJ_NEW_SMALL_INT(0);
+        extern mp_obj_t os_dupterm(size_t n_args, const mp_obj_t *args);
+        os_dupterm(2, args);
+    }
+
 
     // run boot-up scripts
     pyexec_frozen_module("_boot.py");
@@ -127,11 +142,11 @@ soft_reset:
 
     for (;;) {
         if (pyexec_mode_kind == PYEXEC_MODE_RAW_REPL) {
-            vprintf_like_t vprintf_log = esp_log_set_vprintf(vprintf_null);
+        	esp_log_set_vprintf(vprintf_null);
             if (pyexec_raw_repl() != 0) {
                 break;
             }
-            esp_log_set_vprintf(vprintf_log);
+            esp_log_set_vprintf(vprintf_null);
         } else {
             if (pyexec_friendly_repl() != 0) {
                 break;
@@ -164,6 +179,9 @@ soft_reset:
 
 void app_main(void) {
     esp_err_t ret = nvs_flash_init();
+    vprintf_log = esp_log_set_vprintf(vprintf_null);
+    //for debug builds, set vprintf_null to vprintf_log
+    esp_log_set_vprintf(vprintf_null);
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         nvs_flash_init();
