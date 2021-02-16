@@ -147,11 +147,14 @@ def create_task(coro):
 
 
 # Keep scheduling tasks until there are none left to schedule
-def run_until_complete(main_task=None):
+def run_until_complete(main_task=None, run_once=False):
     global cur_task
     excs_all = (CancelledError, Exception)  # To prevent heap allocation in loop
     excs_stop = (CancelledError, StopIteration)  # To prevent heap allocation in loop
+    runs = 0
     while True:
+        runs += 1
+        if run_once and runs > 1:break
         # Wait until the head of _task_queue is ready to run
         dt = 1
         while dt > 0:
@@ -225,10 +228,10 @@ class Loop:
     def create_task(coro):
         return create_task(coro)
 
-    def run_forever():
+    def run_forever(run_once=False):
         global _stop_task
         _stop_task = Task(_stopper(), globals())
-        run_until_complete(_stop_task)
+        run_until_complete(_stop_task, run_once=run_once)
         # TODO should keep running until .stop() is called, even if there're no tasks left
 
     def run_until_complete(aw):
