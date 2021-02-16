@@ -10,6 +10,8 @@ ifeq ($(wildcard $(BOARD_DIR)/.),)
 $(error Invalid BOARD specified: $(BOARD_DIR))
 endif
 
+# QSTR_AUTOGEN_DISABLE
+
 include ../../py/mkenv.mk
 
 # Optional (not currently used for ESP32)
