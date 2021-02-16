@@ -96,11 +96,12 @@ uintptr_t mp_hal_stdio_poll(uintptr_t poll_flags) {
 
 int mp_hal_stdin_rx_chr(void) {
     for (;;) {
+    	//before io, just handle pendings
+    	mp_handle_pending(true);
         int c = mp_uos_dupterm_rx_chr();
         if (c != -1) {
             return c;
         }
-        vTaskDelay(1); // wait on another task
     }
 }
 
@@ -109,6 +110,8 @@ void mp_hal_stdout_tx_str(const char *str) {
 }
 
 void mp_hal_stdout_tx_strn(const char *str, uint32_t len) {
+	//before io, just handle pendings
+	mp_handle_pending(true);
     mp_uos_dupterm_tx_strn(str, len);
 }
 
